@@ -3,8 +3,17 @@ from qutip import *
 from time import time
 from scipy.integrate import trapz
 import pickle as pkl
+import time as time
+
+def time_wrapper(func):
+    def wrapper(*args, **kwargs):
+        tic = time.time()
+        func(*args, **kwargs)
+        toc = time.time()
+        print('Time to run {}: {}'.format(func.__name__, toc - tic))
 
 # We need a quicker way to compute the tilted liouvillian 
+
 
 def tilted_liouvillian(H, L, chi, v):
     '''
@@ -34,6 +43,7 @@ def tilted_liouvillian(H, L, chi, v):
     return L_tilt
 
 # We can pass this tilted liouvillian to the mesolve function
+@time_wrapper
 def solve_tilted_liouvillian(H, L, chi_list, v, psi0, t):
     '''
 
