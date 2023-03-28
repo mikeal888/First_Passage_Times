@@ -128,19 +128,21 @@ if __name__ == "__main__":
     dchi = 0.005
     chi = np.arange(-30, 30, dchi)
 
-    # Creatte time space
-    dtimes = 0.01
-    times = np.arange(0.0, 30, dtimes)
+    liouvs = [tilted_liouvillian(H, L, i, 1) for i in tqdm(chi, desc="Computing tilted liouvillians")]
 
-    # Compute tilted Liouvillians
-    pchis = solve_tilted_liouvillian(H, 1j*L, chi, rho_ss, times, dtimes)
+    # # Creatte time space
+    # dtimes = 0.01
+    # times = np.arange(0.0, 30, dtimes)
 
-    # Now compute integral over n = 1
-    dn = 0.1
-    nvals = np.arange(-20, 20, dn)
+    # # Compute tilted Liouvillians
+    # pchis = solve_tilted_liouvillian(H, 1j*L, chi, rho_ss, times, dtimes)
 
-    tic = time()
-    Pnt = np.real(np.array([trapz(np.exp(-1j*ni*chi)*pchis.T, chi, dx=dchi, axis=1)/(2*np.pi) for ni in nvals]))*dn
-    toc = time()
+    # # Now compute integral over n = 1
+    # dn = 0.1
+    # nvals = np.arange(-20, 20, dn)
 
-    print('Time to compute Pnt: {}'.format(toc - tic))
+    # tic = time()
+    # Pnt = np.real(np.array([trapz(np.exp(-1j*ni*chi)*pchis.T, chi, dx=dchi, axis=1)/(2*np.pi) for ni in nvals]))*dn
+    # toc = time()
+
+    # print('Time to compute Pnt: {}'.format(toc - tic))
