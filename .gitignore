@@ -4,9 +4,9 @@
 *.pkl
 
 .ipynb_checkpoints
-./Figures
-./Data
-./old_code
+Figures/
+Data/
+old_code/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
