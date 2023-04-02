@@ -11,6 +11,53 @@ M1 = sqrt(gamma * (1-f) dt ) * sm
 M2 = sqrt(gamma * f dt) * sp
 """
 
+class ProjectiveEvolutionPnt:
+    """
+    This class is used to compute the projective evolution of the N resolved density operator
+    We use vectorised density operators and the projective evolution of the jump operator
+    """
+
+    def __init__(self, H, c_ops, t, N):
+        """
+        Parameters
+        ----------
+        H : qutip.Qobj
+            The system Hamiltonian
+        c_ops : list of qutip.Qobj
+            The list of collapse operators
+        t : list of float
+            The list of times
+        N : list of float
+            The list of N values
+        """
+        self.H = H
+        self.c_ops = c_ops
+        self.t = t
+        self.N = N
+        self.N_len = len(N)
+        self.dt = t[1] - t[0]   # assuming uniform grid
+        self.dN = N[1] - N[0]   # assuming unifrom grid
+        self.super_operators = self.measurement_superoperator()
+
+    def measurement_superoperator(self):
+        """
+        Return the Kraus operators for the qubit jump operator.
+        """
+        M0 = to_super(1 - 1j * self.H*self.dt).full()
+        Mi = [to_super(np.sqrt(self.dt)*c_op).full() for c_op in self.c_ops]
+        return [M0] + Mi
+    
+    def evolution_matrix(self):
+        """
+        Compute the evolution matrix 
+        """
+        M = self.super_operators()
+        M_update = np.kron(np.diag(np.ones(self.N_len)), M[0]) + np.kron(np.diag(np.ones(self.N_len-1), k=1), M[1]) + np.kron(np.diag(np.ones(self.N_len-1), k=-1), M[2])
+        return M_update
+    
+    
+
+
 def qubit_measurement_superoperators(H, c_ops, dt):
     """
     Return the Kraus operators for the qubit jump operator.
