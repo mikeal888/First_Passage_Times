@@ -2,6 +2,7 @@ import numpy as np
 from qutip import *
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from _funcs import *
 
 """
 In this file we want to implement the projective evolution of jump
@@ -9,53 +10,7 @@ In this file we want to implement the projective evolution of jump
 M0 = 1 - i H_{eff} dt where H_{eff} = H + dt gamma * (1-f)*sp*sm + dt gamma * f*sm*sp
 M1 = sqrt(gamma * (1-f) dt ) * sm 
 M2 = sqrt(gamma * f dt) * sp
-"""
-
-class ProjectiveEvolutionPnt:
-    """
-    This class is used to compute the projective evolution of the N resolved density operator
-    We use vectorised density operators and the projective evolution of the jump operator
-    """
-
-    def __init__(self, H, c_ops, t, N):
-        """
-        Parameters
-        ----------
-        H : qutip.Qobj
-            The system Hamiltonian
-        c_ops : list of qutip.Qobj
-            The list of collapse operators
-        t : list of float
-            The list of times
-        N : list of float
-            The list of N values
-        """
-        self.H = H
-        self.c_ops = c_ops
-        self.t = t
-        self.N = N
-        self.N_len = len(N)
-        self.dt = t[1] - t[0]   # assuming uniform grid
-        self.dN = N[1] - N[0]   # assuming unifrom grid
-        self.super_operators = self.measurement_superoperator()
-
-    def measurement_superoperator(self):
-        """
-        Return the Kraus operators for the qubit jump operator.
-        """
-        M0 = to_super(1 - 1j * self.H*self.dt).full()
-        Mi = [to_super(np.sqrt(self.dt)*c_op).full() for c_op in self.c_ops]
-        return [M0] + Mi
-    
-    def evolution_matrix(self):
-        """
-        Compute the evolution matrix 
-        """
-        M = self.super_operators()
-        M_update = np.kron(np.diag(np.ones(self.N_len)), M[0]) + np.kron(np.diag(np.ones(self.N_len-1), k=1), M[1]) + np.kron(np.diag(np.ones(self.N_len-1), k=-1), M[2])
-        return M_update
-    
-    
+"""    
 
 
 def qubit_measurement_superoperators(H, c_ops, dt):
@@ -74,6 +29,19 @@ def qubit_measurement_operators(H, c_ops, dt):
     Mi = [(np.sqrt(dt)*c_op).full() for c_op in c_ops]
     return [M0.full()] + Mi
 
+def evolve_matrix_new(N, H, c_ops, dt, nu_k):
+    """
+    Evolve the matrix through the measurement superoperators
+    """
+    M = qubit_measurement_superoperators(H, c_ops, dt)
+
+    # M_update = np.kron(np.diag(np.ones(N)), M[0]) + np.kron(np.diag(np.ones(N-1), k=1), M[1]) + np.kron(np.diag(np.ones(N-1), k=-1), M[2])
+
+    M_update_ops = [np.kron(np.diag(np.ones(N - np.abs(nu_k[i])),  k=nu_k[i]), M[i]) for i in range(len(nu_k))]
+    M_update = sum(M_update_ops)
+
+    return M_update
+
 def evolve_matrix(N, H, c_ops, dt):
     """
     Evolve the matrix through the measurement superoperators
@@ -83,6 +51,7 @@ def evolve_matrix(N, H, c_ops, dt):
     M_update = np.kron(np.diag(np.ones(N)), M[0]) + np.kron(np.diag(np.ones(N-1), k=1), M[1]) + np.kron(np.diag(np.ones(N-1), k=-1), M[2])
 
     return M_update
+
 
 
 if __name__ == "__main__":
@@ -109,48 +78,59 @@ if __name__ == "__main__":
     dN = 1
     N = np.arange(-Nm, Nm, dN)
 
-    #----------------- Superoperator -----------------#
-    # Repeat analysis for superoperator method
-
-    # M = qubit_measurement_superoperators(H_eff, c_ops, dt)
-    M_update = evolve_matrix(len(N), H_eff, c_ops, dt)
-
-    # # define initial state
-    rho0 = operator_to_vector(steadystate(H, c_ops)).full()
-
-    # # initialise rho array
+    # Initial index
     i0 = int(Nm/dN)
-    rho_n_vec = np.zeros((4*len(N), len(t)), dtype=complex)
-    rho_n_vec[4*i0:4*i0+4, 0] = rho0.flatten()
+
+    # Compute initial state
+    rho0 = operator_to_vector(steadystate(H, c_ops))
+    nu_k = [0, 1, -1]
+
+    #----------------- Solve -----------------#
+
+    proj = ProjectiveEvolutionPnt(H_eff, c_ops, t, N)
+    Pn_vec = proj.solve(rho0, nu_k, i0)
+
+    # Repeat analysis for superoperator method
+    # M_update = evolve_matrix(len(N), H_eff, c_ops, dt)
+
+    # # # define initial state
+    # rho0 = operator_to_vector(steadystate(H, c_ops)).full()
+    # dim = rho0.shape[0]
+
+    # # # initialise rho array
+    # i0 = int(Nm/dN)
+    # rho_n_vec = np.zeros((4*len(N), len(t)), dtype=complex)
+    # rho_n_vec[dim*i0:dim*(i0+1), 0] = rho0.flatten()
     
-    # # create Ivec
-    Ivec = np.array([1, 0, 0, 1])
+    # # # create Ivec
+    # Ivec = np.array([1, 0, 0, 1])
 
-    # Initialise Pn
-    Pn_vec = np.zeros((len(N), len(t)))
-    Pn_vec[:, 0] = [np.real(np.dot(Ivec, rho_n_vec[4*n:4*(n+1), 0])) for n in range(len(N))]
+    # # Initialise Pn
+    # Pn_vec = np.zeros((len(N), len(t)))
+    # Pn_vec[:, 0] = [np.real(np.dot(Ivec, rho_n_vec[dim*n:dim*(n+1), 0])) for n in range(len(N))]
 
-    # evolve rho
-    for i in tqdm(range(1, len(t)), desc="Evolution Superoperator"):
-        rho_n_vec[:, i] = M_update @ rho_n_vec[:, i-1] 
+    # # evolve rho
+    # for i in tqdm(range(1, len(t)), desc="Evolution Superoperator"):
+    #     rho_n_vec[:, i] = M_update @ rho_n_vec[:, i-1] 
 
-        # calculate Pn
-        for j in range(len(N)):
-            Pn_vec[j, i] = np.real(np.dot(Ivec, rho_n_vec[4*j:4*(j+1), i]))
+    #     # calculate Pn
+    #     for j in range(len(N)):
+    #         Pn_vec[j, i] = np.real(np.dot(Ivec, rho_n_vec[dim*j:dim*(j+1), i]))
 
 
     #----------------- Plotting -----------------#
     fig2, (ax1, ax2) = plt.subplots(1,2, figsize=(10, 5))
+
+    plot_times = [5, 15, 30, 50]
 
     # create a subplot of Pnt vs time
     ax1.plot(t, Pn_vec.T, color='r')
     ax1.plot(t, np.sum(Pn_vec, axis=0), color='black', linestyle='--')
 
     # create a subplot of Pnt vs n
-    ax2.bar(N, Pn_vec[:, np.argmin(np.abs(t-5))], color='k', alpha=0.5, width=1, edgecolor='k')
-    ax2.bar(N, Pn_vec[:, np.argmin(np.abs(t-15))], color='r', alpha=0.5, width=1, edgecolor='k')
-    ax2.bar(N, Pn_vec[:, np.argmin(np.abs(t-30))], color='g', alpha=0.5, width=1, edgecolor='k')
-    ax2.bar(N, Pn_vec[:, np.argmin(np.abs(t-50))], color='b', alpha=0.5, width=1, edgecolor='k')
+    for t_plot in plot_times:
+        ax2.bar(N, Pn_vec[:, np.argmin(np.abs(t-t_plot))], alpha=0.5, width=1, edgecolor='k')
+
     ax2.set_xlabel('n')
     ax2.set_ylabel('Pn(t)')
 
@@ -161,37 +141,42 @@ if __name__ == "__main__":
     fig2.show()
 
 
-    #----------------- Old Code  -----------------#
+    # #----------------- Old Code  -----------------#
 
-    #  # create measurement operators 
-    # M = qubit_measurement_operators(H_eff, c_ops, dt)
 
-    # # Initialise Pn
-    # Pn = np.zeros((len(N), len(t)))
-    # Pn[:, 0] = [np.real(np.trace(rho_n[n, :, :, 0])) for n in range(len(N))]
+    # # proj = ProjectiveEvolutionPnt(H, c_ops, t, N)
+    # # M = proj.evolution_matrix(nu_k)
+    # # Pn_vec = proj.solve(rho0, nu_k, i0)
 
-    # #evolve rho
-    # for i in tqdm(range(1, len(t)), desc="Evolution Direct"):
-    #     for n in range(len(N)):
-    #         if n == 0:
-    #             rho_n[n, :, :, i] = M[0] @ rho_n[n, :, :, i-1] @ M[0].conj().T + M[1] @ rho_n[n+1, :, :, i-1] @ M[1].conj().T
-    #         elif n == len(N)-1:
-    #             rho_n[n, :, :, i] = M[0] @ rho_n[n, :, :, i-1] @ M[0].conj().T + M[2] @ rho_n[n-1, :, :, i-1] @ M[2].conj().T
-    #         else:
-    #             rho_n[n, :, :, i] = M[0] @ rho_n[n, :, :, i-1] @ M[0].conj().T + M[1] @ rho_n[n+1, :, :, i-1] @ M[1].conj().T + M[2] @ rho_n[n-1, :, :, i-1] @ M[2].conj().T
+    # #  # create measurement operators 
+    # # M = qubit_measurement_operators(H_eff, c_ops, dt)
 
-    #         # calculate Pn
-    #         Pn[n, i] = np.real(np.trace(rho_n[n, :, :, i]))
+    # # # Initialise Pn
+    # # Pn = np.zeros((len(N), len(t)))
+    # # Pn[:, 0] = [np.real(np.trace(rho_n[n, :, :, 0])) for n in range(len(N))]
 
-    # #----------------- Plotting -----------------#
+    # # #evolve rho
+    # # for i in tqdm(range(1, len(t)), desc="Evolution Direct"):
+    # #     for n in range(len(N)):
+    # #         if n == 0:
+    # #             rho_n[n, :, :, i] = M[0] @ rho_n[n, :, :, i-1] @ M[0].conj().T + M[1] @ rho_n[n+1, :, :, i-1] @ M[1].conj().T
+    # #         elif n == len(N)-1:
+    # #             rho_n[n, :, :, i] = M[0] @ rho_n[n, :, :, i-1] @ M[0].conj().T + M[2] @ rho_n[n-1, :, :, i-1] @ M[2].conj().T
+    # #         else:
+    # #             rho_n[n, :, :, i] = M[0] @ rho_n[n, :, :, i-1] @ M[0].conj().T + M[1] @ rho_n[n+1, :, :, i-1] @ M[1].conj().T + M[2] @ rho_n[n-1, :, :, i-1] @ M[2].conj().T
 
-    # # # create figure
-    # # fig1, (ax1, ax2) = plt.subplots(1,2, figsize=(10, 5))
+    # #         # calculate Pn
+    # #         Pn[n, i] = np.real(np.trace(rho_n[n, :, :, i]))
 
-    # # # create a subplot of Pnt vs time
-    # # ax1.plot(t, Pn.T, color='r')
-    # # ax1.plot(t, np.sum(Pn, axis=0), color='black', linestyle='--')
+    # # #----------------- Plotting -----------------#
 
-    # # # # create a subplot of Pnt vs n
-    # # ax2.plot(N, Pn[:, ::1000], color='r')
-    # # fig1.show()
+    # # # # create figure
+    # # # fig1, (ax1, ax2) = plt.subplots(1,2, figsize=(10, 5))
+
+    # # # # create a subplot of Pnt vs time
+    # # # ax1.plot(t, Pn.T, color='r')
+    # # # ax1.plot(t, np.sum(Pn, axis=0), color='black', linestyle='--')
+
+    # # # # # create a subplot of Pnt vs n
+    # # # ax2.plot(N, Pn[:, ::1000], color='r')
+    # # # fig1.show()
