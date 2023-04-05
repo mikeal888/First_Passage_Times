@@ -28,6 +28,7 @@ class ProjectiveEvolutionPnt:
         self.N_len = len(N)
         self.dt = t[1] - t[0]   # assuming uniform grid
         self.dN = N[1] - N[0]   # assuming unifrom grid
+        self.dim = H.shape[0]**2    # dimension of the Liouvillian space
 
     def measurement_superoperator(self):
         """
@@ -38,17 +39,24 @@ class ProjectiveEvolutionPnt:
         return [M0] + Mi
     
     def evolution_matrix(self, nu_k: list):
+
         """
-        Compute the evolution matrix 
+        Implements an absorbing boundary condition on the n-resolved density matrix 
 
         Parameters
-        ----------              
+        ----------
         nu_k : list of ints
-            List of what n state is coupled to 
+            List of what n state is coupled to
 
         M[0] reserved for no jump evolution
         M[i] reserved for jump evolution
+
+        Returns
+        -------
+        M_update : np.array
+            The evolution matrix
         """
+
         M = self.measurement_superoperator()
 
         # check that the length of nu_k is the same as the number of collapse operators
@@ -58,6 +66,8 @@ class ProjectiveEvolutionPnt:
         # Compute M_update superoperats
         M_update_ops = [np.kron(np.diag(np.ones(self.N_len - np.abs(nu_k[i])),  k=nu_k[i]), M[i]) for i in range(len(nu_k))]
         M_update = sum(M_update_ops)
+        
+
         return M_update
     
     def solve(self, rho0, nu_k, ix=0):
@@ -77,6 +87,9 @@ class ProjectiveEvolutionPnt:
             Solution to the n-resolved density matrix
         """
 
+        # Compute the evolution matrix
+        M_update = self.evolution_matrix(nu_k)
+
         # Convert the initial state to a vector 
         if rho0.type == 'oper':
             print("Converting initial state to vector form")
@@ -88,22 +101,16 @@ class ProjectiveEvolutionPnt:
             print("Initial state is already in vector form")
             rho0 = rho0.full()
 
-        # Get dim of rho0
-        dim = rho0.shape[0]
-
         # Initialise the density matrix vector
-        rho_n_vec = np.zeros((dim*self.N_len, len(self.t)), dtype=complex)
-        rho_n_vec[dim*ix:dim*(ix+1), 0] = rho0.flatten()
+        rho_n_vec = np.zeros((self.dim*self.N_len, len(self.t)), dtype=complex)
+        rho_n_vec[self.dim*ix:self.dim*(ix+1), 0] = rho0.flatten()
 
         # Get Ivec
-        Ivec = np.eye(int(np.sqrt(dim))).reshape(dim,)
+        Ivec = np.eye(int(np.sqrt(self.dim))).reshape(self.dim,)
 
         # Initialise Pn
         Pn_vec = np.zeros((self.N_len, len(self.t)))
-        Pn_vec[:, 0] = [np.real(np.dot(Ivec, rho_n_vec[dim*n:dim*(n+1), 0])) for n in range(self.N_len)]
-
-        # Compute the evolution matrix
-        M_update = self.evolution_matrix(nu_k)
+        Pn_vec[:, 0] = [np.real(np.dot(Ivec, rho_n_vec[self.dim*n:self.dim*(n+1), 0])) for n in range(self.N_len)]
 
         # evolve rho
         for i in tqdm(range(1, len(self.t)), desc="Evolution Superoperator"):
@@ -111,7 +118,91 @@ class ProjectiveEvolutionPnt:
 
             # calculate Pn
             for j in range(self.N_len):
-                Pn_vec[j, i] = np.real(np.dot(Ivec, rho_n_vec[dim*j:dim*(j+1), i]))
+                Pn_vec[j, i] = np.real(np.dot(Ivec, rho_n_vec[self.dim*j:self.dim*(j+1), i]))
 
         return Pn_vec
     
+class ProjectiveEvolutionPntAbsorb(ProjectiveEvolutionPnt):
+    """
+    This class is used to compute the projective evolution of the N resolved density operator with absorbing boundary conditions
+    We use vectorised density operators and the projective evolution of the jump operator
+    """
+
+    def __init__(self, H, c_ops, t, N, N_cutoff, kind='single'):
+        """
+        Parameters
+        ----------
+        H : qutip.Qobj
+            The system Hamiltonian
+        c_ops : list of qutip.Qobj
+            The list of collapse operators
+        t : list of float
+            The list of times
+        N : list of float
+            The list of N values
+        N_cutoff : list of float
+            The list of N values that are coupled to the absorbing boundary
+        kind : str
+            'single' or 'double' absorbing boundary condition with Nc for single and Nc and -Nc for double
+        """
+        super().__init__(H, c_ops, t, N)
+        self.N_cutoff = N_cutoff
+        self.kind = kind
+
+    def evolution_matrix(self, nu_k: list):
+        """
+        Implements an absorbing boundary condition on the n-resolved density matrix 
+
+        Parameters
+        ----------
+        nu_k : list of ints
+            List of what n state is coupled to
+        N_cutoff : list of ints
+            List of the N values that are coupled to the absorbing boundary
+        kind : str
+            'single' or 'double' absorbing boundary condition with Nc for single and Nc and -Nc for double
+
+        M[0] reserved for no jump evolution
+        M[i] reserved for jump evolution
+
+        Returns
+        -------
+        M_update : np.array
+            The evolution matrix
+        """
+
+        M = self.measurement_superoperator()
+
+        # check that the length of nu_k is the same as the number of collapse operators
+        assert len(nu_k)==len(M), f"length of nu_k =! len(c_ops)"
+        assert nu_k[0] == 0, f"nu_k[0] must be 0"
+        
+        # Replace N with N_cutoff
+        if self.kind == 'single':
+            N = self.N[self.N <= self.N_cutoff]
+        elif self.kind == 'double':
+            N = self.N[np.abs(self.N) <= self.N_cutoff]
+       
+        # update ProjectiveEvolutionPnt.N and ProjectiveEvolutionPnt.N_len
+        self.N = N
+        self.N_len = len(N)
+
+        # Compute M_update superoperats
+        M_update_ops = [np.kron(np.diag(np.ones(self.N_len - np.abs(nu_k[i])),  k=nu_k[i]), M[i]) for i in range(len(nu_k))]    
+        M_update = sum(M_update_ops)
+
+        # Add the absorbing boundary condition
+        if self.kind == 'single':
+            # Set first dim row to zero
+            M_update[:self.dim, :] = 0
+        elif self.kind ==' double':
+            # Set first dim row to zero
+            M_update[:self.dim, :] = 0
+            # Set last dim row to zero
+            M_update[-self.dim:, :] = 0
+        
+        return M_update
+
+
+
+
