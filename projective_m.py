@@ -35,7 +35,7 @@ i0 = np.argmin(np.abs(N))
 
 # Compute initial state
 rho0 = operator_to_vector(steadystate(H, c_ops))
-nu_k = [0, -1, 1]
+nu_k = [0, 1, -1]
 
 #----------------- Solve -----------------#
 
@@ -53,19 +53,22 @@ plot_times = [5, 15, 30, 50]
 
 # create a subplot of Pnt vs time
 # ax1.plot(t, P0, color='black', linestyle='-', label=r'$f(t)$')
-ax1.plot(t, Gt, color='black', linestyle='--')
+ax1.plot(t, dGt, color='black', linestyle='-')
+ax1.set_xlabel('t')
+ax1.set_ylabel(r'$\frac{dG(t)}{dt}$')
+ax1.grid(linestyle='--', linewidth=0.5, alpha=0.5)
 
 for t_plot in plot_times:
-    ax2.bar(proj.N, Pn_vec[:, np.argmin(np.abs(t-t_plot))], alpha=0.5, width=1, edgecolor='k')
+    ax2.bar(-proj.N, Pn_vec[:, np.argmin(np.abs(t-t_plot))], alpha=0.5, width=1, edgecolor='k')
 
-ax2.axvline(x=N_cutoff, color='k', linestyle='--', alpha=0.5)
+ax2.axvline(x=-N_cutoff, color='k', linestyle='--', alpha=0.5)
 
 ax2.set_xlabel('n')
 ax2.set_ylabel('Pn(t)')
 
 ax2.grid(linestyle='--', linewidth=0.5, alpha=0.5)
 
-ax2.set_xlim([np.min(-10), np.max(15)])
+ax2.set_xlim([np.min(-15), np.max(10)])
 ax2.set_ylim(0, 0.3)
 fig2.show()
 
