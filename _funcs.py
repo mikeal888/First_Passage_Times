@@ -2,6 +2,13 @@ import numpy as np
 from qutip import *
 from tqdm import tqdm
 
+def get_first_hit(array, x):
+    # create a function that returs first hitting time of array >= x
+    try: 
+        return np.min(np.where(array>=x))
+    except ValueError:
+        return None
+    
 class ProjectiveEvolutionPnt:
     """
     This class is used to compute the projective evolution of the N resolved density operator
@@ -219,7 +226,7 @@ class DiffusiveEvolutionPnt:
     NOTE: For time being, this class is only for a single collapse operator
     """
 
-    def __init__(self, H: Qobj, c_ops: list, t: np.ndarray, N: np.ndarray):
+    def __init__(self, H: Qobj, c_ops: list, K: float, t: np.ndarray, N: np.ndarray):
         """
         Parameters
         ----------
@@ -231,6 +238,8 @@ class DiffusiveEvolutionPnt:
             The list of times
         N : list of float
             The list of N values
+        K : float
+            The dynamical activity
         """
         self.H = H
         self.c_ops = c_ops
@@ -240,6 +249,7 @@ class DiffusiveEvolutionPnt:
         self.dt = t[1] - t[0]   # assuming uniform grid
         self.dN = N[1] - N[0]   # assuming unifrom grid
         self.dim = H.shape[0]**2    # dimension of the Liouvillian space
+        self.K = K
 
         assert len(c_ops) == 1, f"Only one collapse operator is supported for time being!"
 
@@ -247,13 +257,13 @@ class DiffusiveEvolutionPnt:
         """
         Return the Kraus operators for the qubit diffusion operator
         """
-        L = (1+ self.dt * liouvillian(self.H, self.c_ops) - self.dt/self.dN**2).full()
+        L = (1+ self.dt * liouvillian(self.H, self.c_ops) - self.dt*self.K/self.dN**2).full()
         H_op1 = ((self.dt/(2*self.dN))*(
-            spre(self.c_ops[0])   + self.dt * spost(self.c_ops[0].dag())  + 1/self.dN
+            spre(self.c_ops[0]) + spost(self.c_ops[0].dag())  + self.K/self.dN
                                         )
                                         ).full()
         H_op2 = ((self.dt/(2*self.dN))*(
-            -spre(self.c_ops[0]) - self.dt * spost(self.c_ops[0].dag())  + 1/self.dN
+            -spre(self.c_ops[0]) - spost(self.c_ops[0].dag())  + self.K/self.dN
                                         )
                                         ).full()
 
@@ -274,7 +284,7 @@ class DiffusiveEvolutionPnt:
         """
 
         M = self.measurement_superoperators()
-        nu_k = [0, 1, -1]
+        nu_k = [0, -1, 1]
 
         # Compute M_update superoperats
         M_update_ops = [np.kron(np.diag(np.ones(self.N_len - np.abs(nu_k[i])),  k=nu_k[i]), M[i]) for i in range(len(nu_k))]
@@ -337,7 +347,7 @@ class DiffusiveEvolutionPnt:
     
 class DiffusiveEvolutionPntAbsorb(DiffusiveEvolutionPnt):
 
-    def __init__(self, H, c_ops, t, N, N_cutoff, kind='single'):
+    def __init__(self, H, c_ops, K, t, N, N_cutoff, kind='single'):
         """
         Parameters
         ----------
@@ -354,7 +364,7 @@ class DiffusiveEvolutionPntAbsorb(DiffusiveEvolutionPnt):
         kind : str
             'single' or 'double' absorbing boundary condition with Nc for single and Nc and -Nc for double
         """
-        super().__init__(H, c_ops, t, N)
+        super().__init__(H, c_ops, K, t, N)
         self.N_cutoff = N_cutoff
         self.kind = kind
 
@@ -373,7 +383,7 @@ class DiffusiveEvolutionPntAbsorb(DiffusiveEvolutionPnt):
         """
 
         M = self.measurement_superoperators()
-        nu_k = [0, 1, -1]
+        nu_k = [0, -1, 1]
 
         # Replace N with N_cutoff
         if self.kind == 'single':
