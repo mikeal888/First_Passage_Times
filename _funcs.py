@@ -79,14 +79,14 @@ class ProjectiveEvolutionPnt:
     
     def solve(self, rho0, nu_k):
         """
-        Solve the projective evolution of the density matrix
+        Solve the projective evolution of the density matrix, starts with default index at ix=argmin(abs(N)
 
         Parameters
         ----------
         rho0 : Qobj
             The initial density matrix
-        ix : int        
-            The index of the initial state in the n-resolved basis
+        nu_k : list of ints
+            List of what n state is coupled to
 
         Returns
         -------

@@ -59,7 +59,7 @@ ax1.set_ylabel(r'$\frac{dG(t)}{dt}$')
 ax1.grid(linestyle='--', linewidth=0.5, alpha=0.5)
 
 for t_plot in plot_times:
-    ax2.bar(-proj.N, Pn_vec[:, np.argmin(np.abs(t-t_plot))], alpha=0.5, width=1, edgecolor='k')
+    ax2.bar(proj.N, Pn_vec[:, np.argmin(np.abs(t-t_plot))], alpha=0.5, width=1, edgecolor='k')
 
 ax2.axvline(x=-N_cutoff, color='k', linestyle='--', alpha=0.5)
 
