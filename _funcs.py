@@ -251,7 +251,7 @@ class DiffusiveEvolutionPnt:
         self.dim = H.shape[0]**2    # dimension of the Liouvillian space
         self.K = K
 
-        assert len(c_ops) == 1, f"Only one collapse operator is supported for time being!"
+        # assert len(c_ops) == 1, f"Only one collapse operator is supported for time being!"
 
     def measurement_superoperators(self):
         """
