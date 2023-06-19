@@ -284,7 +284,7 @@ class DiffusiveEvolutionPnt:
         """
 
         M = self.measurement_superoperators()
-        nu_k = [0, 1, -1]
+        nu_k = [0, -1, 1]
 
         # Compute M_update superoperats
         M_update_ops = [np.kron(np.diag(np.ones(self.N_len - np.abs(nu_k[i])),  k=nu_k[i]), M[i]) for i in range(len(nu_k))]
