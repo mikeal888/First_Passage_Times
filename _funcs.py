@@ -219,7 +219,7 @@ class DiffusiveEvolutionPnt:
     We use vectorised density operators and the projective evolution of the jump operator
 
     System evolves according to 
-    d rho_n / dt = L rho_n + H (d rho_n / d N) + (K_d /2) (d^2 rho_n / d N^2)
+    d rho_n / dt = L rho_n - H (d rho_n / d N) + (K_d /2) (d^2 rho_n / d N^2)
 
     where L is the Liouvillian, H is measurement superoperator, K_d = 1 is the dynamical activity (for this simple case)
 
