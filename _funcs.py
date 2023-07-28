@@ -2,13 +2,15 @@ import numpy as np
 from qutip import *
 from tqdm import tqdm
 
+
 def get_first_hit(array, x):
     # create a function that returs first hitting time of array >= x
-    try: 
-        return np.min(np.where(array>=x))
+    try:
+        return np.min(np.where(array >= x))
     except ValueError:
         return None
-    
+
+
 class ProjectiveEvolutionPnt:
     """
     This class is used to compute the projective evolution of the N resolved density operator
@@ -33,22 +35,21 @@ class ProjectiveEvolutionPnt:
         self.t = t
         self.N = N
         self.N_len = len(N)
-        self.dt = t[1] - t[0]   # assuming uniform grid
-        self.dN = N[1] - N[0]   # assuming unifrom grid
-        self.dim = H.shape[0]**2    # dimension of the Liouvillian space
+        self.dt = t[1] - t[0]  # assuming uniform grid
+        self.dN = N[1] - N[0]  # assuming unifrom grid
+        self.dim = H.shape[0] ** 2  # dimension of the Liouvillian space
 
     def measurement_superoperator(self):
         """
         Return the Kraus operators for the qubit jump operator.
         """
-        M0 = to_super(1 - 1j * self.H*self.dt).full()
-        Mi = [to_super(np.sqrt(self.dt)*c_op).full() for c_op in self.c_ops]
+        M0 = to_super(1 - 1j * self.H * self.dt).full()
+        Mi = [to_super(np.sqrt(self.dt) * c_op).full() for c_op in self.c_ops]
         return [M0] + Mi
-    
-    def evolution_matrix(self, nu_k: list):
 
+    def evolution_matrix(self, nu_k: list):
         """
-        Implements an absorbing boundary condition on the n-resolved density matrix 
+        Implements an absorbing boundary condition on the n-resolved density matrix
 
         Parameters
         ----------
@@ -67,16 +68,18 @@ class ProjectiveEvolutionPnt:
         M = self.measurement_superoperator()
 
         # check that the length of nu_k is the same as the number of collapse operators
-        assert len(nu_k)==len(M), f"length of nu_k =! len(c_ops)"
+        assert len(nu_k) == len(M), f"length of nu_k =! len(c_ops)"
         assert nu_k[0] == 0, f"nu_k[0] must be 0"
 
         # Compute M_update superoperats
-        M_update_ops = [np.kron(np.diag(np.ones(self.N_len - np.abs(nu_k[i])),  k=nu_k[i]), M[i]) for i in range(len(nu_k))]
+        M_update_ops = [
+            np.kron(np.diag(np.ones(self.N_len - np.abs(nu_k[i])), k=nu_k[i]), M[i])
+            for i in range(len(nu_k))
+        ]
         M_update = sum(M_update_ops)
-        
 
         return M_update
-    
+
     def solve(self, rho0, nu_k):
         """
         Solve the projective evolution of the density matrix, starts with default index at ix=argmin(abs(N)
@@ -98,11 +101,11 @@ class ProjectiveEvolutionPnt:
         M_update = self.evolution_matrix(nu_k)
         ix = np.argmin(np.abs(self.N))
 
-        # Convert the initial state to a vector 
-        if rho0.type == 'oper':
+        # Convert the initial state to a vector
+        if rho0.type == "oper":
             print("Converting initial state to vector form")
             rho0 = operator_to_vector(rho0).full()
-        elif rho0.type == 'ket':
+        elif rho0.type == "ket":
             print("Converting initial state to vector form")
             rho0 = operator_to_vector(ket2dm(rho0)).full()
         else:
@@ -110,26 +113,34 @@ class ProjectiveEvolutionPnt:
             rho0 = rho0.full()
 
         # Initialise the density matrix vector
-        rho_n_vec = np.zeros((self.dim*self.N_len, len(self.t)), dtype=complex)
-        rho_n_vec[self.dim*ix:self.dim*(ix+1), 0] = rho0.flatten()
+        rho_n_vec = np.zeros((self.dim * self.N_len, len(self.t)), dtype=complex)
+        rho_n_vec[self.dim * ix : self.dim * (ix + 1), 0] = rho0.flatten()
 
         # Get Ivec
-        Ivec = np.eye(int(np.sqrt(self.dim))).reshape(self.dim,)
+        Ivec = np.eye(int(np.sqrt(self.dim))).reshape(
+            self.dim,
+        )
 
         # Initialise Pn
         Pn_vec = np.zeros((self.N_len, len(self.t)))
-        Pn_vec[:, 0] = [np.real(np.dot(Ivec, rho_n_vec[self.dim*n:self.dim*(n+1), 0])) for n in range(self.N_len)]
+        Pn_vec[:, 0] = [
+            np.real(np.dot(Ivec, rho_n_vec[self.dim * n : self.dim * (n + 1), 0]))
+            for n in range(self.N_len)
+        ]
 
         # evolve rho
         for i in tqdm(range(1, len(self.t)), desc="Evolution Superoperator"):
-            rho_n_vec[:, i] = M_update @ rho_n_vec[:, i-1] 
+            rho_n_vec[:, i] = M_update @ rho_n_vec[:, i - 1]
 
             # calculate Pn
             for j in range(self.N_len):
-                Pn_vec[j, i] = np.real(np.dot(Ivec, rho_n_vec[self.dim*j:self.dim*(j+1), i]))
+                Pn_vec[j, i] = np.real(
+                    np.dot(Ivec, rho_n_vec[self.dim * j : self.dim * (j + 1), i])
+                )
 
         return Pn_vec
-    
+
+
 class ProjectiveEvolutionPntAbsorb(ProjectiveEvolutionPnt):
 
     """
@@ -137,7 +148,7 @@ class ProjectiveEvolutionPntAbsorb(ProjectiveEvolutionPnt):
     We use vectorised density operators and the projective evolution of the jump operator
     """
 
-    def __init__(self, H, c_ops, t, N, N_cutoff, kind='single'):
+    def __init__(self, H, c_ops, t, N, N_cutoff, kind="single"):
         """
         Parameters
         ----------
@@ -160,7 +171,7 @@ class ProjectiveEvolutionPntAbsorb(ProjectiveEvolutionPnt):
 
     def evolution_matrix(self, nu_k: list):
         """
-        Implements an absorbing boundary condition on the n-resolved density matrix 
+        Implements an absorbing boundary condition on the n-resolved density matrix
 
         Parameters
         ----------
@@ -183,34 +194,38 @@ class ProjectiveEvolutionPntAbsorb(ProjectiveEvolutionPnt):
         M = self.measurement_superoperator()
 
         # check that the length of nu_k is the same as the number of collapse operators
-        assert len(nu_k)==len(M), f"length of nu_k =! len(c_ops)"
+        assert len(nu_k) == len(M), f"length of nu_k =! len(c_ops)"
         assert nu_k[0] == 0, f"nu_k[0] must be 0"
-        
+
         # Replace N with N_cutoff
-        if self.kind == 'single':
+        if self.kind == "single":
             N = self.N[self.N <= self.N_cutoff]
-        elif self.kind == 'double':
+        elif self.kind == "double":
             N = self.N[np.abs(self.N) <= self.N_cutoff]
-       
+
         # update ProjectiveEvolutionPnt.N and ProjectiveEvolutionPnt.N_len
         self.N = N
         self.N_len = len(N)
 
         # Compute M_update superoperats
-        M_update_ops = [np.kron(np.diag(np.ones(self.N_len - np.abs(nu_k[i])),  k=nu_k[i]), M[i]) for i in range(len(nu_k))]    
+        M_update_ops = [
+            np.kron(np.diag(np.ones(self.N_len - np.abs(nu_k[i])), k=nu_k[i]), M[i])
+            for i in range(len(nu_k))
+        ]
         M_update = sum(M_update_ops)
 
         # Add the absorbing boundary condition
-        if self.kind == 'single':
+        if self.kind == "single":
             # Set first dim row to zero
-            M_update[:self.dim, :] = 0
-        elif self.kind ==' double':
+            M_update[: self.dim, :] = 0
+        elif self.kind == " double":
             # Set first dim row to zero
-            M_update[:self.dim, :] = 0
+            M_update[: self.dim, :] = 0
             # Set last dim row to zero
-            M_update[-self.dim:, :] = 0
-        
+            M_update[-self.dim :, :] = 0
+
         return M_update
+
 
 class DiffusiveEvolutionPnt:
 
@@ -218,7 +233,7 @@ class DiffusiveEvolutionPnt:
     This class is used to compute the diffusive evoltuion of the N resolved density operator
     We use vectorised density operators and the projective evolution of the jump operator
 
-    System evolves according to 
+    System evolves according to
     d rho_n / dt = L rho_n - H (d rho_n / d N) + (K_d /2) (d^2 rho_n / d N^2)
 
     where L is the Liouvillian, H is measurement superoperator, K_d = 1 is the dynamical activity (for this simple case)
@@ -246,9 +261,9 @@ class DiffusiveEvolutionPnt:
         self.t = t
         self.N = N
         self.N_len = len(N)
-        self.dt = t[1] - t[0]   # assuming uniform grid
-        self.dN = N[1] - N[0]   # assuming unifrom grid
-        self.dim = H.shape[0]**2    # dimension of the Liouvillian space
+        self.dt = t[1] - t[0]  # assuming uniform grid
+        self.dN = N[1] - N[0]  # assuming unifrom grid
+        self.dim = H.shape[0] ** 2  # dimension of the Liouvillian space
         self.K = K
 
         # assert len(c_ops) == 1, f"Only one collapse operator is supported for time being!"
@@ -257,25 +272,28 @@ class DiffusiveEvolutionPnt:
         """
         Return the Kraus operators for the qubit diffusion operator
         """
-        L = (1+ self.dt * liouvillian(self.H, self.c_ops) - self.dt*self.K/self.dN**2).full()
-        H_op1 = ((self.dt/(2*self.dN))*(
-            spre(self.c_ops[0]) + spost(self.c_ops[0].dag())  + self.K/self.dN
-                                        )
-                                        ).full()
-        H_op2 = ((self.dt/(2*self.dN))*(
-            -spre(self.c_ops[0]) - spost(self.c_ops[0].dag())  + self.K/self.dN
-                                        )
-                                        ).full()
+        L = (
+            1
+            + self.dt * liouvillian(self.H, self.c_ops)
+            - self.dt * self.K / self.dN**2
+        ).full()
+        H_op1 = (
+            (self.dt / (2 * self.dN))
+            * (spre(self.c_ops[0]) + spost(self.c_ops[0].dag()) + self.K / self.dN)
+        ).full()
+        H_op2 = (
+            (self.dt / (2 * self.dN))
+            * (-spre(self.c_ops[0]) - spost(self.c_ops[0].dag()) + self.K / self.dN)
+        ).full()
 
         return [L, H_op1, H_op2]
-    
-    def evolution_matrix(self):
 
+    def evolution_matrix(self):
         """
-        Implements an absorbing boundary condition on the n-resolved density matrix 
+        Implements an absorbing boundary condition on the n-resolved density matrix
 
         M[0] reserved for normal evolution
-        M[1] reserved for diffusion operator 
+        M[1] reserved for diffusion operator
 
         Returns
         -------
@@ -287,11 +305,14 @@ class DiffusiveEvolutionPnt:
         nu_k = [0, 1, -1]
 
         # Compute M_update superoperats
-        M_update_ops = [np.kron(np.diag(np.ones(self.N_len - np.abs(nu_k[i])),  k=nu_k[i]), M[i]) for i in range(len(nu_k))]
+        M_update_ops = [
+            np.kron(np.diag(np.ones(self.N_len - np.abs(nu_k[i])), k=nu_k[i]), M[i])
+            for i in range(len(nu_k))
+        ]
         M_update = sum(M_update_ops)
-    
+
         return M_update
-    
+
     def solve(self, rho0):
         """
         Solve the projective evolution of the density matrix
@@ -300,7 +321,7 @@ class DiffusiveEvolutionPnt:
         ----------
         rho0 : Qobj
             The initial density matrix
-        ix : int        
+        ix : int
             The index of the initial state in the n-resolved basis
 
         Returns
@@ -313,11 +334,11 @@ class DiffusiveEvolutionPnt:
         M_update = self.evolution_matrix()
         ix = np.argmin(np.abs(self.N))
 
-        # Convert the initial state to a vector 
-        if rho0.type == 'oper':
+        # Convert the initial state to a vector
+        if rho0.type == "oper":
             print("Converting initial state to vector form")
             rho0 = operator_to_vector(rho0).full()
-        elif rho0.type == 'ket':
+        elif rho0.type == "ket":
             print("Converting initial state to vector form")
             rho0 = operator_to_vector(ket2dm(rho0)).full()
         else:
@@ -325,29 +346,36 @@ class DiffusiveEvolutionPnt:
             rho0 = rho0.full()
 
         # Initialise the density matrix vector
-        rho_n_vec = np.zeros((self.dim*self.N_len, len(self.t)), dtype=complex)
-        rho_n_vec[self.dim*ix:self.dim*(ix+1), 0] = rho0.flatten()
+        rho_n_vec = np.zeros((self.dim * self.N_len, len(self.t)), dtype=complex)
+        rho_n_vec[self.dim * ix : self.dim * (ix + 1), 0] = rho0.flatten()
 
         # Get Ivec
-        Ivec = np.eye(int(np.sqrt(self.dim))).reshape(self.dim,)
+        Ivec = np.eye(int(np.sqrt(self.dim))).reshape(
+            self.dim,
+        )
 
         # Initialise Pn
         Pn_vec = np.zeros((self.N_len, len(self.t)))
-        Pn_vec[:, 0] = [np.real(np.dot(Ivec, rho_n_vec[self.dim*n:self.dim*(n+1), 0])) for n in range(self.N_len)]
+        Pn_vec[:, 0] = [
+            np.real(np.dot(Ivec, rho_n_vec[self.dim * n : self.dim * (n + 1), 0]))
+            for n in range(self.N_len)
+        ]
 
         # evolve rho
         for i in tqdm(range(1, len(self.t)), desc="Evolution Superoperator"):
-            rho_n_vec[:, i] = M_update @ rho_n_vec[:, i-1] 
+            rho_n_vec[:, i] = M_update @ rho_n_vec[:, i - 1]
 
             # calculate Pn
             for j in range(self.N_len):
-                Pn_vec[j, i] = np.real(np.dot(Ivec, rho_n_vec[self.dim*j:self.dim*(j+1), i]))
+                Pn_vec[j, i] = np.real(
+                    np.dot(Ivec, rho_n_vec[self.dim * j : self.dim * (j + 1), i])
+                )
 
         return Pn_vec
-    
-class DiffusiveEvolutionPntAbsorb(DiffusiveEvolutionPnt):
 
-    def __init__(self, H, c_ops, K, t, N, N_cutoff, kind='single'):
+
+class DiffusiveEvolutionPntAbsorb(DiffusiveEvolutionPnt):
+    def __init__(self, H, c_ops, K, t, N, N_cutoff, kind="single"):
         """
         Parameters
         ----------
@@ -369,12 +397,11 @@ class DiffusiveEvolutionPntAbsorb(DiffusiveEvolutionPnt):
         self.kind = kind
 
     def evolution_matrix(self):
-
         """
-        Implements an absorbing boundary condition on the n-resolved density matrix 
+        Implements an absorbing boundary condition on the n-resolved density matrix
 
         M[0] reserved for normal evolution
-        M[1] reserved for diffusion operator 
+        M[1] reserved for diffusion operator
 
         Returns
         -------
@@ -386,9 +413,9 @@ class DiffusiveEvolutionPntAbsorb(DiffusiveEvolutionPnt):
         nu_k = [0, -1, 1]
 
         # Replace N with N_cutoff
-        if self.kind == 'single':
+        if self.kind == "single":
             N = self.N[self.N <= self.N_cutoff]
-        elif self.kind == 'double':
+        elif self.kind == "double":
             N = self.N[np.abs(self.N) <= self.N_cutoff]
 
         # update ProjectiveEvolutionPnt.N and ProjectiveEvolutionPnt.N_len
@@ -396,20 +423,20 @@ class DiffusiveEvolutionPntAbsorb(DiffusiveEvolutionPnt):
         self.N_len = len(N)
 
         # Compute M_update superoperats
-        M_update_ops = [np.kron(np.diag(np.ones(self.N_len - np.abs(nu_k[i])),  k=nu_k[i]), M[i]) for i in range(len(nu_k))]
+        M_update_ops = [
+            np.kron(np.diag(np.ones(self.N_len - np.abs(nu_k[i])), k=nu_k[i]), M[i])
+            for i in range(len(nu_k))
+        ]
         M_update = sum(M_update_ops)
 
         # Add the absorbing boundary condition
-        if self.kind == 'single':
+        if self.kind == "single":
             # Set first dim row to zero
-            M_update[:self.dim, :] = 0
-        elif self.kind ==' double':
+            M_update[: self.dim, :] = 0
+        elif self.kind == " double":
             # Set first dim row to zero
-            M_update[:self.dim, :] = 0
+            M_update[: self.dim, :] = 0
             # Set last dim row to zero
-            M_update[-self.dim:, :] = 0
-        
-    
-        return M_update
-    
+            M_update[-self.dim :, :] = 0
 
+        return M_update
